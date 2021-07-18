@@ -211,14 +211,18 @@ void Decoder::InitOutFrame() {
     //帧结构
     frame_YUV_ = av_frame_alloc();
     frame_RGB32_ = av_frame_alloc();
-    //输出缓冲空间
-    int out_buffer_size = av_image_get_buffer_size(AV_PIX_FMT_RGB32,
-                          out_width_, out_height_, 1);
-    out_buffer_ = (uint8_t*)av_malloc(out_buffer_size);
-    //填充RGB32帧结构
-    av_image_fill_arrays(frame_RGB32_->data, frame_RGB32_->linesize,
-                         out_buffer_, AV_PIX_FMT_RGB32,
-                         out_width_, out_height_, 1);
+    frame_RGB32_->format = AV_PIX_FMT_RGB32;
+    frame_RGB32_->width = out_width_;
+    frame_RGB32_->height = out_height_;
+    av_frame_get_buffer(frame_RGB32_, 0);
+//    //输出缓冲空间
+//    int out_buffer_size = av_image_get_buffer_size(AV_PIX_FMT_RGB32,
+//                          out_width_, out_height_, 1);
+//    out_buffer_ = (uint8_t*)av_malloc(out_buffer_size);
+//    //填充RGB32帧结构
+//    av_image_fill_arrays(frame_RGB32_->data, frame_RGB32_->linesize,
+//                         out_buffer_, AV_PIX_FMT_RGB32,
+//                         out_width_, out_height_, 1);
 }
 //释放输出结构体空间
 void Decoder::DeinitOutFrame() {
