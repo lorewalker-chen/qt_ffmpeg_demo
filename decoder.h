@@ -16,32 +16,29 @@ class QThread;
 class Decoder : public QObject {
     Q_OBJECT
   public:
-    explicit Decoder(const QString& url, uint out_width = 0, uint out_height = 0, QObject* parent = nullptr);
+    explicit Decoder(QObject* parent = nullptr);
     ~Decoder();
 
   public slots:
+    //参数设置
+    void SetUrl(const QString& url);
+    void SetOutImageSize(uint width, uint height);
+    //解码控制
+    void Start();
+//    void Pause();
+//    void Goon();
+//    void Stop();
+
+
     void OpenVideo();
     void CloseVideo();
 
   private slots:
+    bool IsLocalFile(const QString& url);
     bool isNetworkUrl(const QString& url);
 
-    void InitFFmpeg();
+    bool InitFFmpeg();
     void DeinitFFmpeg();
-
-    void InitNetWork();
-    void DeInitNetwork();
-
-    void InitParameters();
-    void DeinitParameters();
-
-    bool OpenUrl();
-    void CloseUrl();
-
-    void FindVideoStreamIndex();
-
-    bool InitCodecContext();
-    void DeinitCodecContext();
 
     void InitSwsContext();
     void DeinitSwsContext();
@@ -52,12 +49,20 @@ class Decoder : public QObject {
     void DecodeOnePacket();
 
   private:
+    //线程
+    QThread* decode_thread_ = nullptr;
+    //播放状态
+    bool is_stop_ = true;
+    bool is_pausing_ = false;
+    //设置
     QString url_ = "";
-
-    uint out_width_;
-    uint out_height_;
-
-    AVDictionary* opts_ = NULL;
+    bool is_local_ = false;
+    uint out_image_width_;
+    uint out_image_height_;
+    //解码定时器
+    uint decode_delay_msec_ = 30;
+    QTimer* decode_timer_ = nullptr;
+    //FFmpeg相关结构体
     AVFormatContext* format_context_ = NULL;
     int video_stream_index_;
     AVCodecContext* codec_context_ = NULL;
@@ -66,13 +71,6 @@ class Decoder : public QObject {
     AVFrame* frame_YUV_ = NULL;
     AVFrame* frame_RGB32_ = NULL;
     uint8_t* out_buffer_ = NULL;
-
-    uint decode_delay_msec_ = 30;
-    QTimer* decode_timer_ = nullptr;
-
-    QThread* decode_thread_ = nullptr;
-
-    bool is_stop_ = false;
 
   signals:
     void GotImage(const QImage& image);

@@ -20,7 +20,7 @@ class MainWindow : public QMainWindow {
   private:
     Ui::MainWindow* ui;
 
-    QScopedPointer<Decoder> decoder_;
+    Decoder decoder_;
 
   private slots:
     void GotImage(const QImage& image);
