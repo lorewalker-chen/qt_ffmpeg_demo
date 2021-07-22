@@ -90,6 +90,7 @@ void Decoder::Stop() {
         decode_timer_->stop();
         decode_timer_->deleteLater();
     }
+    is_stop_ = true;
     //释放空间
     DeinitFFmpeg();
 }
