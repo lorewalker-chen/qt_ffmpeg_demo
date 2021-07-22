@@ -21,17 +21,15 @@ Decoder::Decoder(QObject* parent): QObject(parent) {
 
 Decoder::~Decoder() {
     if (decode_timer_) {
-        decode_timer_->stop();
         decode_timer_->deleteLater();
     }
-
+    DeinitFFmpeg();
     decode_thread_->quit();
     decode_thread_->wait();
     decode_thread_->deleteLater();
 }
 //设置Url
 void Decoder::SetUrl(const QString& url) {
-    qDebug() << "set url:" << QThread::currentThreadId();
     //如果正在播放,不进行设置
     if (!is_stop_) {
         return;
@@ -41,7 +39,7 @@ void Decoder::SetUrl(const QString& url) {
     if (temp.isValid()) {
         url_ = url;
         //判断url是否为本地文件
-        is_local_ = temp.isLocalFile();
+        is_local_ = isLocalFile(url);
     }
 }
 //设置输出图片尺寸
@@ -74,28 +72,25 @@ void Decoder::Start() {
     //打开解码定时器
     decode_timer_->start(delay);
 }
-//打开视频
-void Decoder::OpenVideo() {
-    is_stop_ = false;
-    //初始化FFmpeg组件
-    InitFFmpeg();
-    //初始化图像转换器上下文
-    InitSwsContext();
-    if (!sws_context_) {
-        DeinitSwsContext();
-        return;
-    }
-    //初始化输出结构体
-    InitOutFrame();
-    //打开解码器定时器
+//暂停
+void Decoder::Pause() {
+    is_pausing_ = true;
+}
+//继续
+void Decoder::Goon() {
+    is_pausing_ = false;
 }
 //关闭视频
-void Decoder::CloseVideo() {
+void Decoder::Stop() {
     //发送一帧空白图片
     QImage image;
     emit GotImage(image);
-    decode_timer_->stop();
-    decode_timer_->deleteLater();
+    //停止定时器
+    if (decode_timer_) {
+        decode_timer_->stop();
+        decode_timer_->deleteLater();
+    }
+    //释放空间
     DeinitFFmpeg();
 }
 //判断一个url是否为本地文件
@@ -105,16 +100,12 @@ bool Decoder::IsLocalFile(const QString& url) {
     return temp.isLocalFile();
 }
 //判断一个正确的url地址是否为网络地址
-bool Decoder::isNetworkUrl(const QString& url) {
-
-    if (url == "") {
-        return false;
-    }
+bool Decoder::isLocalFile(const QString& url) {
     //linux下文件路径开头为/,windows下文件路径第二个字符为:
     if (url.indexOf("/") == 0 || url.indexOf(":") == 1) {
-        return false;
+        return true;
     }
-    return true;
+    return false;
 }
 //初始化FFmpeg组件，分配空间
 bool Decoder::InitFFmpeg() {
@@ -196,14 +187,41 @@ bool Decoder::InitFFmpeg() {
         }
         return false;
     }
-
+    //包
+    packet_ = av_packet_alloc();
+    //帧结构
+    frame_ = av_frame_alloc();
+    //输出帧采用RGB32格式
+    out_frame_ = av_frame_alloc();
+    out_frame_->format = AV_PIX_FMT_RGB32;
+    out_frame_->width = out_image_width_;
+    out_frame_->height = out_image_height_;
+    av_frame_get_buffer(out_frame_, 0);
+    //图像格式转换器上下文
+    if (out_image_width_ == 0 || out_image_height_ == 0) {
+        out_image_width_ = codec_context_->width;
+        out_image_height_ = codec_context_->height;
+    }
+    sws_context_ = sws_getContext(codec_context_->width, codec_context_->height, codec_context_->pix_fmt,
+                                  out_image_width_, out_image_height_, AV_PIX_FMT_RGB32,
+                                  SWS_BICUBIC, NULL, NULL, NULL);
     return true;
 }
 //释放FFmpeg空间
 void Decoder::DeinitFFmpeg() {
-    DeinitOutFrame();
-    DeinitSwsContext();
-
+    if (!out_frame_) {
+        av_frame_free(&out_frame_);
+    }
+    if (!frame_) {
+        av_frame_free(&frame_);
+    }
+    if (!packet_) {
+        av_packet_free(&packet_);
+    }
+    //图像格式转换器
+    if (!sws_context_) {
+        sws_freeContext(sws_context_);
+    }
     //解码器
     if (!codec_context_) {
         avcodec_close(codec_context_);
@@ -219,59 +237,12 @@ void Decoder::DeinitFFmpeg() {
         avformat_network_deinit();
     }
 }
-//初始化图像转换器上下文
-void Decoder::InitSwsContext() {
-    if (out_image_width_ == 0 || out_image_height_ == 0) {
-        out_image_width_ = codec_context_->width;
-        out_image_height_ = codec_context_->height;
-    }
-    sws_context_ = sws_getContext(codec_context_->width, codec_context_->height, codec_context_->pix_fmt,
-                                  out_image_width_, out_image_height_, AV_PIX_FMT_RGB32,
-                                  SWS_BICUBIC, NULL, NULL, NULL);
-}
-//释放图像转换器空间
-void Decoder::DeinitSwsContext() {
-    if (sws_context_ != NULL) {
-        sws_freeContext(sws_context_);
-    }
-}
-//初始化输出帧结构
-void Decoder::InitOutFrame() {
-    //包
-    packet_ = av_packet_alloc();
-    //帧结构
-    frame_YUV_ = av_frame_alloc();
-    frame_RGB32_ = av_frame_alloc();
-    frame_RGB32_->format = AV_PIX_FMT_RGB32;
-    frame_RGB32_->width = out_image_width_;
-    frame_RGB32_->height = out_image_height_;
-    av_frame_get_buffer(frame_RGB32_, 0);
-//    //输出缓冲空间
-//    int out_buffer_size = av_image_get_buffer_size(AV_PIX_FMT_RGB32,
-//                          out_width_, out_height_, 1);
-//    out_buffer_ = (uint8_t*)av_malloc(out_buffer_size);
-//    //填充RGB32帧结构
-//    av_image_fill_arrays(frame_RGB32_->data, frame_RGB32_->linesize,
-//                         out_buffer_, AV_PIX_FMT_RGB32,
-//                         out_width_, out_height_, 1);
-}
-//释放输出结构体空间
-void Decoder::DeinitOutFrame() {
-    if (frame_RGB32_ != NULL) {
-        av_frame_free(&frame_RGB32_);
-    }
-    if (out_buffer_ != NULL) {
-        av_free(out_buffer_);
-    }
-    if (frame_YUV_ != NULL) {
-        av_frame_free(&frame_YUV_);
-    }
-    if (packet_ != NULL) {
-        av_packet_free(&packet_);
-    }
-}
 //解码一包数据
 void Decoder::DecodeOnePacket() {
+    //如果是本地流,在此处暂停,以实现从暂停处继续
+    if (is_local_ && is_pausing_) {
+        return;
+    }
     //读取一帧未解码的视频数据
     int read_result = -1;
     int read_count = 0;
@@ -293,14 +264,20 @@ void Decoder::DecodeOnePacket() {
         qDebug() << "send packet failed";
     }
     //接收解码后的数据
-    if (avcodec_receive_frame(codec_context_, frame_YUV_) == 0) {
+    if (avcodec_receive_frame(codec_context_, frame_) == 0) {
+        //如果是网络流,在此处暂停,以实现实时解码
+        if (!is_local_ && is_pausing_) {
+            //释放空间
+            av_packet_unref(packet_);
+            return;
+        }
         //YUV转RGB32
         sws_scale(sws_context_,
-                  frame_YUV_->data, frame_YUV_->linesize,
-                  0, frame_YUV_->height,
-                  frame_RGB32_->data, frame_RGB32_->linesize);
+                  frame_->data, frame_->linesize,
+                  0, frame_->height,
+                  out_frame_->data, out_frame_->linesize);
         //创建QImage
-        QImage image(frame_RGB32_->data[0],
+        QImage image(out_frame_->data[0],
                      out_image_width_, out_image_height_, QImage::Format_RGB32);
         //发送信号
         emit GotImage(image);

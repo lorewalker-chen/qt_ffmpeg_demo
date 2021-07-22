@@ -24,5 +24,7 @@ class MainWindow : public QMainWindow {
 
   private slots:
     void GotImage(const QImage& image);
+    void on_pushButton_pause_clicked();
+    void on_pushButton_goon_clicked();
 };
 #endif // MAINWINDOW_H

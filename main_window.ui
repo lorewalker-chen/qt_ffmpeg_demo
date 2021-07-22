@@ -27,6 +27,32 @@
      <string/>
     </property>
    </widget>
+   <widget class="QPushButton" name="pushButton_pause">
+    <property name="geometry">
+     <rect>
+      <x>870</x>
+      <y>130</y>
+      <width>75</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Pause</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="pushButton_goon">
+    <property name="geometry">
+     <rect>
+      <x>870</x>
+      <y>180</y>
+      <width>75</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Goon</string>
+    </property>
+   </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">

@@ -25,26 +25,16 @@ class Decoder : public QObject {
     void SetOutImageSize(uint width, uint height);
     //解码控制
     void Start();
-//    void Pause();
-//    void Goon();
-//    void Stop();
-
-
-    void OpenVideo();
-    void CloseVideo();
+    void Pause();
+    void Goon();
+    void Stop();
 
   private slots:
     bool IsLocalFile(const QString& url);
-    bool isNetworkUrl(const QString& url);
+    bool isLocalFile(const QString& url);
 
     bool InitFFmpeg();
     void DeinitFFmpeg();
-
-    void InitSwsContext();
-    void DeinitSwsContext();
-
-    void InitOutFrame();
-    void DeinitOutFrame();
 
     void DecodeOnePacket();
 
@@ -52,8 +42,8 @@ class Decoder : public QObject {
     //线程
     QThread* decode_thread_ = nullptr;
     //播放状态
-    bool is_stop_ = true;
-    bool is_pausing_ = false;
+    volatile bool is_stop_ = true;
+    volatile bool is_pausing_ = false;
     //设置
     QString url_ = "";
     bool is_local_ = false;
@@ -68,9 +58,8 @@ class Decoder : public QObject {
     AVCodecContext* codec_context_ = NULL;
     SwsContext* sws_context_ = NULL;
     AVPacket* packet_ = NULL;
-    AVFrame* frame_YUV_ = NULL;
-    AVFrame* frame_RGB32_ = NULL;
-    uint8_t* out_buffer_ = NULL;
+    AVFrame* frame_ = NULL;
+    AVFrame* out_frame_ = NULL;
 
   signals:
     void GotImage(const QImage& image);
